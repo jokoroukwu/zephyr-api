@@ -1,7 +1,7 @@
 package io.github.jokoroukwu.zephyrapi.testcyclecreator
 
 import io.github.jokoroukwu.zephyrapi.AbstractTest
-import io.github.jokoroukwu.zephyrapi.publication.PublicationData
+import io.github.jokoroukwu.zephyrapi.publication.PublicationContext
 import io.github.jokoroukwu.zephyrapi.publication.PublicationDataProcessor
 import io.github.jokoroukwu.zephyrapi.publication.ZephyrTestCycle
 import io.github.jokoroukwu.zephyrapi.publication.testcyclecreator.CreateTestCycleRequestSender
@@ -26,7 +26,8 @@ class TestCycleCreatorTest : AbstractTest() {
     private fun nonEmptyPublicationDataProvider(): Array<Array<Any>> {
         return arrayOf(
             arrayOf(
-                PublicationData(
+                PublicationContext(
+                    zephyrConfig = dummyConfig,
                     testCycles = listOf(
                         ZephyrTestCycle(startTime = 1, endTime = 2),
                         ZephyrTestCycle(startTime = 1, endTime = 2)
@@ -41,30 +42,30 @@ class TestCycleCreatorTest : AbstractTest() {
 
     @Test(dataProvider = "nonEmptyPublicationDataProvider")
     fun `should call createTestCycleRequestSender with expected arguments`(
-        publicationData: PublicationData,
+        publicationContext: PublicationContext,
         createTestCycleResponses: List<CreateTestCycleResponse>
     ) {
         every { nextProcessorMock.process(any()) } returns true
-        coEvery { createTestCycleRequestSenderMock.createTestCycle(any(), any()) } returnsMany createTestCycleResponses
+        coEvery {
+            createTestCycleRequestSenderMock.createTestCycle(any(), any(), any())
+        } returnsMany createTestCycleResponses
 
-        testCycleCreator.process(publicationData)
-
-        coVerify(exactly = 2) {
-            createTestCycleRequestSenderMock.createTestCycle(
-                publicationData.projectId, publicationData.testCycles.first()
-            )
+        testCycleCreator.process(publicationContext)
+        with(publicationContext) {
+            coVerify(exactly = 2) {
+                createTestCycleRequestSenderMock.createTestCycle(projectId, testCycles.first(), zephyrConfig)
+            }
         }
-
     }
 
     @Test(dataProvider = "nonEmptyPublicationDataProvider")
     private fun `should propagate next processor result`(
-        publicationData: PublicationData,
+        publicationContext: PublicationContext,
         createTestCycleResponses: List<CreateTestCycleResponse>
     ) {
         every { nextProcessorMock.process(any()) } returns false
-        coEvery { createTestCycleRequestSenderMock.createTestCycle(any(), any()) } returnsMany createTestCycleResponses
-        val result = testCycleCreator.process(publicationData)
+        coEvery { createTestCycleRequestSenderMock.createTestCycle(any(), any(),any()) } returnsMany createTestCycleResponses
+        val result = testCycleCreator.process(publicationContext)
         Assertions.assertThat(result)
             .`as`("check next processor result is propagated")
             .isFalse
@@ -72,17 +73,17 @@ class TestCycleCreatorTest : AbstractTest() {
 
     @Test(dataProvider = "nonEmptyPublicationDataProvider")
     fun `should call next processor with expected argument`(
-        publicationData: PublicationData,
+        publicationContext: PublicationContext,
         createTestCycleResponses: List<CreateTestCycleResponse>
     ) {
-        val capturedArg = slot<PublicationData>()
+        val capturedArg = slot<PublicationContext>()
         every { nextProcessorMock.process(capture(capturedArg)) } returns true
-        coEvery { createTestCycleRequestSenderMock.createTestCycle(any(), any()) } returnsMany createTestCycleResponses
+        coEvery { createTestCycleRequestSenderMock.createTestCycle(any(), any(),any()) } returnsMany createTestCycleResponses
 
-        testCycleCreator.process(publicationData)
+        testCycleCreator.process(publicationContext)
         val expectedCycles = createTestCycleResponses
             .mapTo(HashSet(2)) { ZephyrTestCycle(id = it.id, key = it.key, startTime = 1, endTime = 2) }
-        val expectedArg = publicationData.copy(testCycles = expectedCycles)
+        val expectedArg = publicationContext.copy(testCycles = expectedCycles)
         val actualArg = capturedArg.captured.copy(testCycles = HashSet(capturedArg.captured.testCycles))
 
         Assertions.assertThat(actualArg)
@@ -93,27 +94,27 @@ class TestCycleCreatorTest : AbstractTest() {
     @DataProvider
     private fun noToBeProcessedPublicationDataProvider(): Array<Array<Any>> {
         return arrayOf(
-            arrayOf(PublicationData(testCycles = emptyList()))
+            arrayOf(PublicationContext(zephyrConfig = dummyConfig,testCycles = emptyList()))
         )
     }
 
     @Test(dataProvider = "noToBeProcessedPublicationDataProvider")
-    private fun `should not call createTestCycleRequestSender`(publicationData: PublicationData) {
-        testCycleCreator.process(publicationData)
+    private fun `should not call createTestCycleRequestSender`(publicationContext: PublicationContext) {
+        testCycleCreator.process(publicationContext)
         verify(exactly = 0) { nextProcessorMock.process(any()) }
     }
 
     @Test(dataProvider = "noToBeProcessedPublicationDataProvider")
-    private fun `should return false when no test cycles are present`(publicationData: PublicationData) {
-        val result = testCycleCreator.process(publicationData)
+    private fun `should return false when no test cycles are present`(publicationContext: PublicationContext) {
+        val result = testCycleCreator.process(publicationContext)
         Assertions.assertThat(result)
             .`as`("check returned false when no test cycles are present")
             .isFalse
     }
 
     @Test(dataProvider = "noToBeProcessedPublicationDataProvider")
-    private fun `should not call next processor when no tests cycles are present`(publicationData: PublicationData) {
-        testCycleCreator.process(publicationData)
+    private fun `should not call next processor when no tests cycles are present`(publicationContext: PublicationContext) {
+        testCycleCreator.process(publicationContext)
         verify(exactly = 0) { nextProcessorMock.process(any()) }
     }
 

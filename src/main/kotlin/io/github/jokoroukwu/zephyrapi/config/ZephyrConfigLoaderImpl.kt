@@ -8,6 +8,7 @@ import org.snakeyaml.engine.v2.nodes.Tag
 import org.snakeyaml.engine.v2.resolver.JsonScalarResolver
 import java.io.FileNotFoundException
 import java.io.InputStream
+import java.net.URL
 import java.nio.file.Files
 import java.nio.file.Paths
 import java.time.ZoneId
@@ -49,7 +50,7 @@ object ZephyrConfigLoaderImpl : ZephyrConfigLoader {
             ZephyrConfigImpl(
                 timeZone = ZoneId.of(getProperty("time-zone")),
                 projectKey = getProperty("project-key"),
-                jiraUrl = getProperty("jira-url"),
+                jiraUrl = getProperty("jira-url").let(::URL),
                 username = getProperty("username"),
                 password = getProperty("password")
             )

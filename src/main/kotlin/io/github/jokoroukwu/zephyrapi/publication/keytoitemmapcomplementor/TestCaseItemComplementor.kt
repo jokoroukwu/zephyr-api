@@ -1,6 +1,6 @@
 package io.github.jokoroukwu.zephyrapi.publication.keytoitemmapcomplementor
 
-import io.github.jokoroukwu.zephyrapi.publication.PublicationData
+import io.github.jokoroukwu.zephyrapi.publication.PublicationContext
 import io.github.jokoroukwu.zephyrapi.publication.PublicationDataProcessor
 import io.github.jokoroukwu.zephyrapi.publication.TestResult
 import io.github.jokoroukwu.zephyrapi.publication.TestRun
@@ -18,15 +18,15 @@ class TestCaseItemComplementor(
 
     /**
      * Fetches test case items, which are required for further processing,
-     * from JIRA to complement [PublicationData].
+     * from JIRA to complement [PublicationContext].
      */
-    override fun process(publicationData: PublicationData): Boolean {
-        var data = publicationData
-        return publicationData
+    override fun process(publicationContext: PublicationContext): Boolean {
+        var data = publicationContext
+        return publicationContext
             .testCycles
             .testCasesKeys()
             .takeUnless(Set<String>::isEmpty)
-            ?.let(getTestCasesRequestSender::requestTestCases)
+            ?.let { getTestCasesRequestSender.requestTestCases(it, publicationContext.zephyrConfig) }
             ?.let(GetTestCasesResponse::results)
             //  may still have fetched zero items
             ?.takeUnless(List<TestCaseItem>::isEmpty)

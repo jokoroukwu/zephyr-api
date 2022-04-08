@@ -1,13 +1,13 @@
 package io.github.jokoroukwu.zephyrapi.testcasekeycomplementor
 
-import io.github.jokoroukwu.zephyrapi.api.*
+import io.github.jokoroukwu.zephyrapi.AbstractTest
 import io.github.jokoroukwu.zephyrapi.publication.*
 import io.github.jokoroukwu.zephyrapi.publication.keytoitemmapcomplementor.*
 import io.mockk.*
 import org.assertj.core.api.Assertions
 import org.testng.annotations.*
 
-class TestCaseKeyComplementorTest {
+class TestCaseKeyComplementorTest: AbstractTest() {
     private val getTestCaseRequestSenderMock = mockk<GetTestCasesRequestSender>()
     private val nextProcessorMock = mockk<PublicationDataProcessor>()
     private lateinit var testCaseItemComplementor: TestCaseItemComplementor
@@ -51,14 +51,15 @@ class TestCaseKeyComplementorTest {
                     id = -1, key = it, projectId = -1, testData = emptyList(), testScript = TestScriptItem(emptyList())
                 )
             }
-        every { getTestCaseRequestSenderMock.requestTestCases(any()) } returns GetTestCasesResponse(
+        every { getTestCaseRequestSenderMock.requestTestCases(any(),any()) } returns GetTestCasesResponse(
             total = -1,
             startAt = -1,
             maxResults = -1,
             results = testCaseItems
         )
         every { nextProcessorMock.process(any()) } returns false
-        val inputPublicationData = PublicationData(
+        val inputPublicationData = PublicationContext(
+            zephyrConfig = dummyConfig,
             testCycles = listOf(
                 ZephyrTestCycle(
                     testResults = resultList,
@@ -87,14 +88,15 @@ class TestCaseKeyComplementorTest {
                     id = -1, key = it, projectId = -1, testData = emptyList(), testScript = TestScriptItem(emptyList())
                 )
             }
-        every { getTestCaseRequestSenderMock.requestTestCases(any()) } returns GetTestCasesResponse(
+        every { getTestCaseRequestSenderMock.requestTestCases(any(),any()) } returns GetTestCasesResponse(
             total = -1,
             startAt = -1,
             maxResults = -1,
             results = testCaseItems
         )
-        val actualPublicationData = slot<PublicationData>()
-        val inputPublicationData = PublicationData(
+        val actualPublicationData = slot<PublicationContext>()
+        val inputPublicationData = PublicationContext(
+            zephyrConfig = dummyConfig,
             testCycles = listOf(
                 ZephyrTestCycle(
                     testResults = resultList,
@@ -120,8 +122,9 @@ class TestCaseKeyComplementorTest {
         zephyrTestResultTwo: ZephyrTestResult
     ) {
         val capturedArgs = slot<Collection<String>>()
-        justRun { getTestCaseRequestSenderMock.requestTestCases(capture(capturedArgs)) }
-        val publicationData = PublicationData(
+        justRun { getTestCaseRequestSenderMock.requestTestCases(capture(capturedArgs),any()) }
+        val publicationData = PublicationContext(
+            zephyrConfig = dummyConfig,
             testCycles = listOf(
                 ZephyrTestCycle(
                     testResults = listOf(zephyrTestResultOne),
@@ -148,7 +151,9 @@ class TestCaseKeyComplementorTest {
     private fun notToBeProcessedCycles(): Array<Array<Any?>> {
         return arrayOf(
             arrayOf(
-                PublicationData(
+                PublicationContext(
+                    zephyrConfig = dummyConfig,
+
                     testCycles = listOf(
                         ZephyrTestCycle(startTime = 1, endTime = 2),
                         ZephyrTestCycle(
@@ -173,16 +178,16 @@ class TestCaseKeyComplementorTest {
     }
 
     @Test(dataProvider = "notToBeProcessedCycles")
-    private fun `should not call request sender`(publicationData: PublicationData) {
-        justRun { getTestCaseRequestSenderMock.requestTestCases(any()) }
-        publicationData.runCatching(testCaseItemComplementor::process)
+    private fun `should not call request sender`(publicationContext: PublicationContext) {
+        justRun { getTestCaseRequestSenderMock.requestTestCases(any(),any()) }
+        publicationContext.runCatching(testCaseItemComplementor::process)
 
-        verify(exactly = 0) { getTestCaseRequestSenderMock.requestTestCases(any()) }
+        verify(exactly = 0) { getTestCaseRequestSenderMock.requestTestCases(any(),any()) }
     }
 
     @Test(dataProvider = "notToBeProcessedCycles")
-    private fun `should return false when no test case keys are present`(publicationData: PublicationData) {
-        val result = testCaseItemComplementor.process(publicationData)
+    private fun `should return false when no test case keys are present`(publicationContext: PublicationContext) {
+        val result = testCaseItemComplementor.process(publicationContext)
 
         Assertions.assertThat(result)
             .`as`("should return false when no test case keys are present")
@@ -190,16 +195,18 @@ class TestCaseKeyComplementorTest {
     }
 
     @Test(dataProvider = "notToBeProcessedCycles")
-    private fun `should not call next processor when no test case keys are present`(publicationData: PublicationData) {
-        testCaseItemComplementor.process(publicationData);
+    private fun `should not call next processor when no test case keys are present`(publicationContext: PublicationContext) {
+        testCaseItemComplementor.process(publicationContext);
 
         verify(exactly = 0) { nextProcessorMock.process(any()) }
     }
 
     @Test(dataProvider = "notToBeProcessedCycles")
-    private fun `should not call request sender when no test case keys are present`(publicationData: PublicationData) {
-        testCaseItemComplementor.process(publicationData);
+    private fun `should not call request sender when no test case keys are present`(publicationContext: PublicationContext) {
+        testCaseItemComplementor.process(publicationContext);
 
-        verify(exactly = 0) { getTestCaseRequestSenderMock.requestTestCases(any()) }
+        verify(exactly = 0) { getTestCaseRequestSenderMock.requestTestCases(any(),any()) }
     }
+
+    override fun getObjectsToUnmock(): Array<Any> = arrayOf()
 }

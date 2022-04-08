@@ -13,6 +13,10 @@ import java.util.regex.Pattern
  * as substitutions in a YAML document.
  */
 class SystemPropResolvingConstructor(settings: LoadSettings) : StandardConstructor(settings) {
+    companion object {
+        val ENV_OR_PROP_FORMAT: Pattern =
+            Pattern.compile("""^\$\{\s*(?<name>[\w.]+)(?:(?<separator>:?[-?])(?<value>[\w.]+)?)?\s*}$""")
+    }
 
     init {
         tagConstructors[Tag.ENV_TAG] = SystemPropertyConstruct()
@@ -33,11 +37,5 @@ class SystemPropResolvingConstructor(settings: LoadSettings) : StandardConstruct
                 }
             }.orElse(it)
         }
-    }
-
-    companion object {
-        val ENV_OR_PROP_FORMAT: Pattern =
-            Pattern.compile("""^\$\{\s*(?<name>[\w.]+)(?:(?<separator>:?[-?])(?<value>[\w.]+)?)?\s*}$""")
-
     }
 }

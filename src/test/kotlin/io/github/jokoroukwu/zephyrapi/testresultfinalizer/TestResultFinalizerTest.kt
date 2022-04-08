@@ -1,5 +1,6 @@
 package io.github.jokoroukwu.zephyrapi.testresultfinalizer
 
+import io.github.jokoroukwu.zephyrapi.AbstractTest
 import io.github.jokoroukwu.zephyrapi.publication.*
 import io.github.jokoroukwu.zephyrapi.publication.detailedreportprocessor.ReportStepResult
 import io.github.jokoroukwu.zephyrapi.publication.detailedreportprocessor.ReportTestResult
@@ -17,7 +18,7 @@ import java.util.*
 import kotlin.collections.ArrayList
 import kotlin.random.Random
 
-class TestResultFinalizerTest {
+class TestResultFinalizerTest : AbstractTest() {
     private val testCaseId = 1L
     private val statusMap: StatusMap = TestResultStatus.values()
         .associateWithTo(EnumMap(TestResultStatus::class.java)) { status -> status.ordinal.toLong() }
@@ -46,15 +47,14 @@ class TestResultFinalizerTest {
         clearAllMocks()
     }
 
-    @AfterClass(alwaysRun = true)
-    fun afterClass() {
-        unmockkObject(testResultFinalizerMock, strategyFactoryMock)
-    }
+
+    override fun getObjectsToUnmock(): Array<Any> = arrayOf(testResultFinalizerMock, strategyFactoryMock)
 
     @DataProvider
     private fun singleTestCycleDataProvider(): Array<Array<Any>> {
         val singleResultTestCycle = ZephyrTestCycle(testResults = listOf(testResult), startTime = 1, endTime = 2)
-        val singleCycleSingleResultData = PublicationData(
+        val singleCycleSingleResultData = PublicationContext(
+            zephyrConfig = dummyConfig,
             statusMap = statusMap,
             testCycles = listOf(singleResultTestCycle),
             testCaseIdToReportTestResultsMap = mapOf(testCaseId to LinkedList<ReportTestResult>().apply {
@@ -62,7 +62,8 @@ class TestResultFinalizerTest {
             })
         )
         val multiTestResultCycle = singleResultTestCycle.copy(testResults = listOf(testResult, testResult))
-        val multiCycleMultiResultData = PublicationData(
+        val multiCycleMultiResultData = PublicationContext(
+            zephyrConfig = dummyConfig,
             statusMap = statusMap,
             testCycles = listOf(singleResultTestCycle, multiTestResultCycle),
             testCaseIdToReportTestResultsMap = mapOf(testCaseId to LinkedList<ReportTestResult>().apply {
@@ -78,9 +79,9 @@ class TestResultFinalizerTest {
     }
 
     @Test(dataProvider = "singleTestCycleDataProvider")
-    private fun `should call finalizer with expected args`(publicationData: PublicationData) {
-        val expectedTestResults = publicationData.testCycles.flatMap(TestRun::testResults)
-        val expectedReportTestResults = publicationData.testCaseIdToReportTestResultsMap.flatMap { it.value }
+    private fun `should call finalizer with expected args`(publicationContext: PublicationContext) {
+        val expectedTestResults = publicationContext.testCycles.flatMap(TestRun::testResults)
+        val expectedReportTestResults = publicationContext.testCaseIdToReportTestResultsMap.flatMap { it.value }
 
         val capturedReportTestResults = ArrayList<ReportTestResult>(5)
         val capturedTestResults = ArrayList<TestResult>(5)
@@ -95,7 +96,7 @@ class TestResultFinalizerTest {
             //  return value is out of test scope
         } returns TestResultFinalization(SerializableTestResult(1, 1, 1), emptyList())
 
-        dataFinalizer.process(publicationData)
+        dataFinalizer.process(publicationContext)
 
         softly {
             assertThat(capturedStatusMap)
@@ -116,7 +117,8 @@ class TestResultFinalizerTest {
 
     @Test
     private fun `should not call finalizer when report test result is not present`() {
-        val publicationData = PublicationData(
+        val publicationData = PublicationContext(
+            zephyrConfig = dummyConfig,
             statusMap = statusMap,
             testCycles = listOf(ZephyrTestCycle(startTime = 1, endTime = 2, testResults = listOf(testResult)))
         )

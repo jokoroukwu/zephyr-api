@@ -1,6 +1,7 @@
 package io.github.jokoroukwu.zephyrapi.testcyclefilter
 
-import io.github.jokoroukwu.zephyrapi.publication.PublicationData
+import io.github.jokoroukwu.zephyrapi.AbstractTest
+import io.github.jokoroukwu.zephyrapi.publication.PublicationContext
 import io.github.jokoroukwu.zephyrapi.publication.PublicationDataProcessor
 import io.github.jokoroukwu.zephyrapi.publication.ZephyrTestCycle
 import io.github.jokoroukwu.zephyrapi.publication.ZephyrTestResult
@@ -8,13 +9,14 @@ import io.github.jokoroukwu.zephyrapi.publication.keytoitemmapcomplementor.TestC
 import io.github.jokoroukwu.zephyrapi.publication.testcyclefilter.FilteredResult
 import io.github.jokoroukwu.zephyrapi.publication.testcyclefilter.TestCycleFilter
 import io.github.jokoroukwu.zephyrapi.publication.testcyclefilter.TestResultFilter
+import io.github.jokoroukwu.zephyrapi.softly
 import io.mockk.*
 import org.assertj.core.api.Assertions
 import org.assertj.core.api.SoftAssertions
 import org.testng.annotations.*
 import org.testng.annotations.Test
 
-class TestCycleFilterTest {
+class TestCycleFilterTest : AbstractTest() {
     private val testCaseItemMock = mockk<TestCaseItem>()
     private val nextProcessorMock = mockk<PublicationDataProcessor>()
     private val testResultFilterMock = mockk<TestResultFilter>()
@@ -29,15 +31,15 @@ class TestCycleFilterTest {
     }
 
     @AfterMethod(alwaysRun = true)
-    fun tearDown() {
+    override fun baseTearDown() {
         clearAllMocks()
         every { nextProcessorMock.process(any()) } returns true
         every { testCaseItemMock.id } returns 1
     }
 
-    @AfterClass(alwaysRun = true)
-    fun afterClass() {
-        unmockkObject(testResultFilterMock, nextProcessorMock)
+
+    override fun getObjectsToUnmock(): Array<Any> {
+        return arrayOf(testResultFilterMock, nextProcessorMock)
     }
 
     @Test
@@ -46,7 +48,8 @@ class TestCycleFilterTest {
         val resultTwo = ZephyrTestResult(testCaseKey = "key-two", startTime = 1, endTime = 2)
         val map = hashMapOf("key-one" to testCaseItemMock, "key-two" to testCaseItemMock)
 
-        val publicationData = PublicationData(
+        val publicationData = PublicationContext(
+            zephyrConfig = dummyConfig,
             testCycles = listOf(
                 ZephyrTestCycle(testResults = listOf(resultOne), startTime = 1, endTime = 2),
                 ZephyrTestCycle(testResults = listOf(resultTwo), startTime = 1, endTime = 2)
@@ -68,7 +71,7 @@ class TestCycleFilterTest {
 
     @Test(dataProvider = "callNextProcessorWithExpectedCyclesAfterResultFilterProvider")
     private fun `should call next processor with expected arguments after result filter`(
-        publicationData: PublicationData,
+        publicationContext: PublicationContext,
         expectedTestCycles: List<ZephyrTestCycle>,
         resultFilterMockReturnValues: List<FilteredResult>
     ) {
@@ -80,22 +83,23 @@ class TestCycleFilterTest {
             )
         } returnsMany resultFilterMockReturnValues
 
-        val capturedData = slot<PublicationData>()
+        val capturedData = slot<PublicationContext>()
         every { nextProcessorMock.process(capture(capturedData)) } returns true
-        testCycleFilter.process(publicationData)
+        testCycleFilter.process(publicationContext)
 
         val actualData = capturedData.captured
-        with(SoftAssertions()) {
-            assertThat(actualData.finalizedSteps).`as`("finalized steps").isEqualTo(publicationData.finalizedSteps)
+
+        softly {
+            assertThat(actualData.finalizedSteps).`as`("finalized steps").isEqualTo(publicationContext.finalizedSteps)
             assertThat(actualData.finalizedTestResults).`as`("finalized test results")
-                .isEqualTo(publicationData.finalizedTestResults)
-            assertThat(actualData.projectId).`as`("project id").isEqualTo(publicationData.projectId)
+                .isEqualTo(publicationContext.finalizedTestResults)
+            assertThat(actualData.projectId).`as`("project id").isEqualTo(publicationContext.projectId)
             assertThat(actualData.testCaseKeyToItemMap).`as`("test case key to id map")
-                .isEqualTo(publicationData.testCaseKeyToItemMap)
+                .isEqualTo(publicationContext.testCaseKeyToItemMap)
             assertThat(actualData.testCaseIdToReportTestResultsMap).`as`("test case id to report test result map")
-                .isEqualTo(publicationData.testCaseIdToReportTestResultsMap)
+                .isEqualTo(publicationContext.testCaseIdToReportTestResultsMap)
             assertThat(actualData.statusMap).`as`("test result status to id map")
-                .isEqualTo(publicationData.statusMap)
+                .isEqualTo(publicationContext.statusMap)
             assertThat(actualData.testCycles)
                 .`as`("check contains expected test cycles")
                 .containsExactlyInAnyOrderElementsOf(expectedTestCycles)
@@ -112,7 +116,8 @@ class TestCycleFilterTest {
         val map = hashMapOf("key-one" to testCaseItemMock, "key-two" to testCaseItemMock)
         return arrayOf(
             arrayOf(
-                PublicationData(
+                PublicationContext(
+                    zephyrConfig = dummyConfig,
                     testCycles = listOf(
                         ZephyrTestCycle(testResults = listOf(resultOne), startTime = 1, endTime = 2),
                         ZephyrTestCycle(testResults = listOf(resultOne, resultTwo), startTime = 1, endTime = 2)
@@ -130,7 +135,8 @@ class TestCycleFilterTest {
                 )
             ),
             arrayOf(
-                PublicationData(
+                PublicationContext(
+                    zephyrConfig = dummyConfig,
                     testCycles = listOf(
                         ZephyrTestCycle(testResults = listOf(resultOne), startTime = 1, endTime = 2),
                         ZephyrTestCycle(testResults = listOf(resultTwo), startTime = 1, endTime = 2)
@@ -148,30 +154,30 @@ class TestCycleFilterTest {
 
     @Test(dataProvider = "callNextProcessorWithExpectedCyclesProvider")
     private fun `should call next processor with expected arguments`(
-        publicationData: PublicationData,
+        publicationContext: PublicationContext,
         expectedTestCycles: List<ZephyrTestCycle>
     ) {
         val capturedResult = slot<ZephyrTestResult>()
         every { testResultFilterMock.filterTestResult(capture(capturedResult), any()) } answers {
             FilteredResult(testResult = capturedResult.captured)
         }
-        val capturedData = slot<PublicationData>()
+        val capturedData = slot<PublicationContext>()
         every { nextProcessorMock.process(capture(capturedData)) } returns true
 
-        testCycleFilter.process(publicationData)
+        testCycleFilter.process(publicationContext)
 
         val actualData = capturedData.captured
         with(SoftAssertions()) {
-            assertThat(actualData.finalizedSteps).`as`("finalized steps").isEqualTo(publicationData.finalizedSteps)
+            assertThat(actualData.finalizedSteps).`as`("finalized steps").isEqualTo(publicationContext.finalizedSteps)
             assertThat(actualData.finalizedTestResults).`as`("finalized test results")
-                .isEqualTo(publicationData.finalizedTestResults)
-            assertThat(actualData.projectId).`as`("project id").isEqualTo(publicationData.projectId)
+                .isEqualTo(publicationContext.finalizedTestResults)
+            assertThat(actualData.projectId).`as`("project id").isEqualTo(publicationContext.projectId)
             assertThat(actualData.testCaseKeyToItemMap).`as`("test case key to id map")
-                .isEqualTo(publicationData.testCaseKeyToItemMap)
+                .isEqualTo(publicationContext.testCaseKeyToItemMap)
             assertThat(actualData.testCaseIdToReportTestResultsMap).`as`("test case id to report test result map")
-                .isEqualTo(publicationData.testCaseIdToReportTestResultsMap)
+                .isEqualTo(publicationContext.testCaseIdToReportTestResultsMap)
             assertThat(actualData.statusMap).`as`("test result status to id map")
-                .isEqualTo(publicationData.statusMap)
+                .isEqualTo(publicationContext.statusMap)
             assertThat(actualData.testCycles)
                 .`as`("check contains expected test cycles")
                 .containsExactlyInAnyOrderElementsOf(expectedTestCycles)
@@ -188,7 +194,8 @@ class TestCycleFilterTest {
 
         return arrayOf(
             arrayOf(
-                PublicationData(
+                PublicationContext(
+                    zephyrConfig = dummyConfig,
                     testCycles = listOf(
                         ZephyrTestCycle(testResults = listOf(resultOne), startTime = 1, endTime = 2),
                         ZephyrTestCycle(testResults = listOf(resultOne, resultTwo), startTime = 1, endTime = 2)
@@ -201,7 +208,8 @@ class TestCycleFilterTest {
                 )
             ),
             arrayOf(
-                PublicationData(
+                PublicationContext(
+                    zephyrConfig = dummyConfig,
                     testCycles = listOf(
                         ZephyrTestCycle(testResults = listOf(resultOne), startTime = 1, endTime = 2),
                         ZephyrTestCycle(testResults = listOf(resultTwo), startTime = 1, endTime = 2)
@@ -216,7 +224,7 @@ class TestCycleFilterTest {
 
     @Test(dataProvider = "callFilterOnExpectedResultsProvider")
     private fun `should call test result filter with expected arguments`(
-        publicationData: PublicationData,
+        publicationContext: PublicationContext,
         verifyCalled: List<ZephyrTestResult>,
         verifyNotCalled: List<ZephyrTestResult>
     ) {
@@ -225,13 +233,13 @@ class TestCycleFilterTest {
             FilteredResult(testResult = capturedResult.captured)
         }
 
-        testCycleFilter.process(publicationData)
+        testCycleFilter.process(publicationContext)
 
         verifyCalled.forEach {
             verify(exactly = 1) {
                 testResultFilterMock.filterTestResult(
                     it,
-                    publicationData.testCaseKeyToItemMap[it.testCaseKey]!!
+                    publicationContext.testCaseKeyToItemMap[it.testCaseKey]!!
                 )
             }
         }
@@ -249,7 +257,8 @@ class TestCycleFilterTest {
     private fun callFilterOnExpectedResultsProvider(): Array<Array<Any?>> {
         val allValidResultOne = ZephyrTestResult(testCaseKey = "key-one", startTime = 1, endTime = 2)
         val allValidResultTwo = ZephyrTestResult(testCaseKey = "key-two", startTime = 1, endTime = 2)
-        val allValidTestResultsData = PublicationData(
+        val allValidTestResultsData = PublicationContext(
+            zephyrConfig = dummyConfig,
             testCycles = listOf(
                 ZephyrTestCycle(testResults = listOf(allValidResultOne), startTime = 1, endTime = 2),
                 ZephyrTestCycle(testResults = listOf(allValidResultTwo), startTime = 1, endTime = 2),
@@ -265,7 +274,8 @@ class TestCycleFilterTest {
         val partiallyValidResultThree = ZephyrTestResult(testCaseKey = "key-three", startTime = 1, endTime = 2)
         val partiallyValidResultFour = ZephyrTestResult(testCaseKey = "key-four", startTime = 1, endTime = 2)
 
-        val partiallyValidTestResultsData = PublicationData(
+        val partiallyValidTestResultsData = PublicationContext(
+            zephyrConfig = dummyConfig,
             testCycles = listOf(
                 ZephyrTestCycle(
                     testResults = listOf(partiallyValidResultOne, partiallyValidResultThree),
@@ -310,7 +320,8 @@ class TestCycleFilterTest {
     private fun `should not call next processor when results are empty`() {
         justRun { testResultFilterMock.filterTestResult(any(), any()) }
 
-        val publicationData = PublicationData(
+        val publicationData = PublicationContext(
+            zephyrConfig = dummyConfig,
             testCycles = emptyList(),
             testCaseKeyToItemMap = mapOf("key" to mockk(relaxed = true))
         )
@@ -323,10 +334,10 @@ class TestCycleFilterTest {
     }
 
     @Test(dataProvider = "emptyTestCycleProvider")
-    private fun `should not call next processor when test cycle is empty`(publicationData: PublicationData) {
+    private fun `should not call next processor when test cycle is empty`(publicationContext: PublicationContext) {
         justRun { testResultFilterMock.filterTestResult(any(), any()) }
 
-        val result = testCycleFilter.process(publicationData)
+        val result = testCycleFilter.process(publicationContext)
 
         verify(exactly = 0) { testResultFilterMock.filterTestResult(any(), any()) }
         verify(exactly = 0) { nextProcessorMock.process(any()) }
@@ -338,10 +349,16 @@ class TestCycleFilterTest {
     private fun emptyTestCycleProvider() =
         arrayOf<Array<Any>>(
             //  single empty test cycle
-            arrayOf(PublicationData(testCycles = listOf(ZephyrTestCycle(startTime = 1, endTime = 2)))),
+            arrayOf(
+                PublicationContext(
+                    zephyrConfig = dummyConfig,
+                    testCycles = listOf(ZephyrTestCycle(startTime = 1, endTime = 2))
+                )
+            ),
             //  multiple empty test cycles
             arrayOf(
-                PublicationData(
+                PublicationContext(
+                    zephyrConfig = dummyConfig,
                     testCycles = listOf(
                         ZephyrTestCycle(startTime = 1, endTime = 2),
                         ZephyrTestCycle(startTime = 1, endTime = 2)
@@ -351,10 +368,10 @@ class TestCycleFilterTest {
         )
 
     @Test(dataProvider = "noTestCaseFetchedProvider")
-    private fun `should not call next processor when no test cases fetched`(publicationData: PublicationData) {
+    private fun `should not call next processor when no test cases fetched`(publicationContext: PublicationContext) {
         justRun { testResultFilterMock.filterTestResult(any(), any()) }
 
-        val result = testCycleFilter.process(publicationData)
+        val result = testCycleFilter.process(publicationContext)
 
         verify(exactly = 0) { testResultFilterMock.filterTestResult(any(), any()) }
         verify(exactly = 0) { nextProcessorMock.process(any()) }
@@ -367,7 +384,8 @@ class TestCycleFilterTest {
         arrayOf<Array<Any?>>(
             //  single test cycle; single test result
             arrayOf(
-                PublicationData(
+                PublicationContext(
+                    zephyrConfig = dummyConfig,
                     testCycles = listOf(
                         ZephyrTestCycle(
                             testResults = listOf(
@@ -385,7 +403,8 @@ class TestCycleFilterTest {
             ),
             //  single test cycle; multiple test results
             arrayOf(
-                PublicationData(
+                PublicationContext(
+                    zephyrConfig = dummyConfig,
                     testCycles = listOf(
                         ZephyrTestCycle(
                             testResults = listOf(
@@ -400,7 +419,8 @@ class TestCycleFilterTest {
             ),
             //  multiple test cycles; single test result
             arrayOf(
-                PublicationData(
+                PublicationContext(
+                    zephyrConfig = dummyConfig,
                     testCycles = listOf(
                         ZephyrTestCycle(
                             testResults = listOf(
@@ -429,7 +449,8 @@ class TestCycleFilterTest {
             ),
             //  multiple test cycles; multiple test results
             arrayOf(
-                PublicationData(
+                PublicationContext(
+                    zephyrConfig = dummyConfig,
                     testCycles = listOf(
                         ZephyrTestCycle(
                             testResults = listOf(

@@ -1,26 +1,21 @@
 package io.github.jokoroukwu.zephyrapi.config
 
+import java.net.URL
 import java.time.ZoneId
 
 data class ZephyrConfigImpl(
-    private val timeZone: ZoneId,
-    private val jiraUrl: String,
-    private val projectKey: String,
-    private val username: String,
-    private val password: String
-
+    override var timeZone: ZoneId,
+    override val jiraUrl: URL,
+    override val projectKey: String,
+    override val username: String,
+    override val password: String
 ) : ZephyrConfig {
-    override fun timeZone() = timeZone
-
-    override fun jiraUrl() = jiraUrl
-
-    override fun projectKey() = projectKey
-
-    override fun username() = username
-
-    override fun password() = password
 
     override fun toString() =
-        "{timeZone: $timeZone, jiraUrl: $jiraUrl, projectKey: $projectKey, username: $username, password: $password}"
+        "{timeZone: $timeZone, jiraUrl: $jiraUrl, projectKey: $projectKey, username: $username, password: ${
+            "*".repeat(
+                password.length
+            )
+        }}"
 
 }

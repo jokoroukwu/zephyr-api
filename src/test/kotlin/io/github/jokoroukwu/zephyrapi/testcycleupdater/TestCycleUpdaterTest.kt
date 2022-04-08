@@ -1,7 +1,7 @@
 package io.github.jokoroukwu.zephyrapi.testcycleupdater
 
 import io.github.jokoroukwu.zephyrapi.AbstractTest
-import io.github.jokoroukwu.zephyrapi.publication.PublicationData
+import io.github.jokoroukwu.zephyrapi.publication.PublicationContext
 import io.github.jokoroukwu.zephyrapi.publication.PublicationDataProcessor
 import io.github.jokoroukwu.zephyrapi.publication.ZephyrTestCycle
 import io.github.jokoroukwu.zephyrapi.publication.testcycleupdater.TestCycleUpdater
@@ -24,7 +24,8 @@ class TestCycleUpdaterTest : AbstractTest() {
     private fun toBeProcessedPublicationDataProvider(): Array<Array<Any>> {
         return arrayOf(
             arrayOf(
-                PublicationData(
+                PublicationContext(
+                    zephyrConfig = dummyConfig,
                     testCycles = listOf(
                         ZephyrTestCycle(startTime = 1, endTime = 2),
                         ZephyrTestCycle(startTime = 1, endTime = 2)
@@ -35,29 +36,30 @@ class TestCycleUpdaterTest : AbstractTest() {
     }
 
     @Test(dataProvider = "toBeProcessedPublicationDataProvider")
-    private fun `should call request sender with expected args`(publicationData: PublicationData) {
+    private fun `should call request sender with expected args`(publicationContext: PublicationContext) {
         every { nextProcessorMock.process(any()) } returns true
-        coJustRun { updateTestCycleRequestSenderMock.updateTestCycle(any()) }
+        coJustRun { updateTestCycleRequestSenderMock.updateTestCycle(any(), any()) }
 
-        testCycleUpdater.process(publicationData)
+        testCycleUpdater.process(publicationContext)
 
-        coVerify(exactly = 2) { updateTestCycleRequestSenderMock.updateTestCycle(publicationData.testCycles.first()) }
-
+        with(publicationContext) {
+            coVerify(exactly = 2) { updateTestCycleRequestSenderMock.updateTestCycle(testCycles.first(), zephyrConfig) }
+        }
     }
 
     @Test(dataProvider = "toBeProcessedPublicationDataProvider")
-    private fun `should call nex processor with expected arguments`(publicationData: PublicationData) {
+    private fun `should call nex processor with expected arguments`(publicationContext: PublicationContext) {
         every { nextProcessorMock.process(any()) } returns true
-        coJustRun { updateTestCycleRequestSenderMock.updateTestCycle(any()) }
-        testCycleUpdater.process(publicationData)
-        verify(exactly = 1) { nextProcessorMock.process(publicationData) }
+        coJustRun { updateTestCycleRequestSenderMock.updateTestCycle(any(), publicationContext.zephyrConfig) }
+        testCycleUpdater.process(publicationContext)
+        verify(exactly = 1) { nextProcessorMock.process(publicationContext) }
     }
 
     @Test(dataProvider = "toBeProcessedPublicationDataProvider")
-    private fun `should pass next processor result`(publicationData: PublicationData) {
+    private fun `should pass next processor result`(publicationContext: PublicationContext) {
         every { nextProcessorMock.process(any()) } returns false
-        coJustRun { updateTestCycleRequestSenderMock.updateTestCycle(any()) }
-        val result = testCycleUpdater.process(publicationData)
+        coJustRun { updateTestCycleRequestSenderMock.updateTestCycle(any(), publicationContext.zephyrConfig) }
+        val result = testCycleUpdater.process(publicationContext)
         Assertions.assertThat(result)
             .`as`("check next processor result was passed")
             .isFalse
@@ -66,25 +68,25 @@ class TestCycleUpdaterTest : AbstractTest() {
     @DataProvider
     private fun notTobeProcessedPublicationDataProvider(): Array<Array<Any>> {
         return arrayOf(
-            arrayOf(PublicationData(testCycles = emptyList()))
+            arrayOf(PublicationContext(testCycles = emptyList(), zephyrConfig = dummyConfig))
         )
     }
 
     @Test(dataProvider = "notTobeProcessedPublicationDataProvider")
-    private fun `should not call request sender when no test cycles are present`(publicationData: PublicationData) {
-        testCycleUpdater.process(publicationData)
-        coVerify(exactly = 0) { updateTestCycleRequestSenderMock.updateTestCycle(any()) }
+    private fun `should not call request sender when no test cycles are present`(publicationContext: PublicationContext) {
+        testCycleUpdater.process(publicationContext)
+        coVerify(exactly = 0) { updateTestCycleRequestSenderMock.updateTestCycle(any(), any()) }
     }
 
     @Test(dataProvider = "notTobeProcessedPublicationDataProvider")
-    private fun `should not call next processor when no test cycles are present`(publicationData: PublicationData) {
-        testCycleUpdater.process(publicationData)
+    private fun `should not call next processor when no test cycles are present`(publicationContext: PublicationContext) {
+        testCycleUpdater.process(publicationContext)
         verify(exactly = 0) { nextProcessorMock.process(any()) }
     }
 
     @Test(dataProvider = "notTobeProcessedPublicationDataProvider")
-    private fun `should return false when no test cycles are present`(publicationData: PublicationData) {
-        val result = testCycleUpdater.process(publicationData)
+    private fun `should return false when no test cycles are present`(publicationContext: PublicationContext) {
+        val result = testCycleUpdater.process(publicationContext)
         Assertions.assertThat(result)
             .`as`("check returns false when no test cycles are present")
             .isFalse

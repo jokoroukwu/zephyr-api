@@ -1,5 +1,6 @@
 package io.github.jokoroukwu.zephyrapi.publication
 
+import io.github.jokoroukwu.zephyrapi.config.ZephyrConfig
 import io.github.jokoroukwu.zephyrapi.publication.detailedreportprocessor.ReportTestResult
 import io.github.jokoroukwu.zephyrapi.publication.detailedreportprocessor.TestScriptResult
 import io.github.jokoroukwu.zephyrapi.publication.keytoitemmapcomplementor.TestCaseItem
@@ -9,7 +10,8 @@ import java.util.*
 
 typealias StatusMap = Map<TestResultStatus, Long>
 
-data class PublicationData(
+data class PublicationContext(
+    val zephyrConfig: ZephyrConfig,
     val projectId: Long = -1,
     val testCycles: Collection<ZephyrTestCycle> = emptyList(),
     val statusMap: StatusMap = emptyMap(),
