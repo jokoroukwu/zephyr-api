@@ -1,7 +1,8 @@
 package io.github.jokoroukwu.zephyrapi.publication.testresultstatuscomplementor
 
+import io.github.jokoroukwu.zephyrapi.config.ZephyrConfig
 import io.github.jokoroukwu.zephyrapi.http.ZephyrException
-import io.github.jokoroukwu.zephyrapi.publication.PublicationData
+import io.github.jokoroukwu.zephyrapi.publication.PublicationContext
 import io.github.jokoroukwu.zephyrapi.publication.PublicationDataProcessor
 import io.github.jokoroukwu.zephyrapi.publication.testcyclecreator.TestCycleCreator
 import java.util.*
@@ -13,16 +14,17 @@ class TestResultStatusComplementor(
 ) : PublicationDataProcessor {
 
     /**
-     * Complements [publicationData] with test result status map
+     * Complements [publicationContext] with test result status map
      */
-    override fun process(publicationData: PublicationData) =
-        getTestResultStatusToIdMap(publicationData.projectId)
-            .let { publicationData.copy(statusMap = it) }
+    override fun process(publicationContext: PublicationContext) = with(publicationContext) {
+        getTestResultStatusToIdMap(projectId, zephyrConfig)
+            .let { publicationContext.copy(statusMap = it) }
             .let(nextProcessor::process)
+    }
 
 
-    private fun getTestResultStatusToIdMap(projectId: Long): Map<TestResultStatus, Long> {
-        return getTestResultStatusesRequestSender.getTestResultStatusesRequest(projectId)
+    private fun getTestResultStatusToIdMap(projectId: Long, zephyrConfig: ZephyrConfig): Map<TestResultStatus, Long> {
+        return getTestResultStatusesRequestSender.getTestResultStatusesRequest(projectId, zephyrConfig)
             .associateTo(EnumMap(TestResultStatus::class.java)) { it.name to it.id }
             .also(::validateStatusMap)
     }

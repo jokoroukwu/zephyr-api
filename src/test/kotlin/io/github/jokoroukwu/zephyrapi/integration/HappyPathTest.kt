@@ -8,21 +8,20 @@ import com.github.tomakehurst.wiremock.client.WireMock.*
 import com.github.tomakehurst.wiremock.core.WireMockConfiguration
 import com.github.tomakehurst.wiremock.http.RequestMethod
 import com.github.tomakehurst.wiremock.stubbing.ServeEvent
+import io.github.jokoroukwu.zephyrapi.ZephyrClient
+import io.github.jokoroukwu.zephyrapi.config.ZephyrConfig
+import io.github.jokoroukwu.zephyrapi.config.ZephyrConfigImpl
+import io.github.jokoroukwu.zephyrapi.http.AbstractRequestSender.Companion.BASE_API_URL
+import io.github.jokoroukwu.zephyrapi.http.JsonMapper
+import io.github.jokoroukwu.zephyrapi.integration.util.Stubber
 import io.github.jokoroukwu.zephyrapi.publication.TestDataResultBase
 import io.github.jokoroukwu.zephyrapi.publication.TestResultBase
 import io.github.jokoroukwu.zephyrapi.publication.TestRunBase
-import io.github.jokoroukwu.zephyrapi.api.ZephyrClient
-import io.github.jokoroukwu.zephyrapi.api.annotations.Step
-import io.github.jokoroukwu.zephyrapi.api.annotations.TestCaseKey
-import io.github.jokoroukwu.zephyrapi.config.ZephyrConfig
-import io.github.jokoroukwu.zephyrapi.config.ZephyrConfigLoaderImpl
-import io.github.jokoroukwu.zephyrapi.http.AbstractRequestSender.Companion.BASE_API_URL
-import io.github.jokoroukwu.zephyrapi.http.JsonMapper
-import io.github.jokoroukwu.zephyrapi.integration.util.*
 import io.github.jokoroukwu.zephyrapi.publication.detailedreportprocessor.*
 import io.github.jokoroukwu.zephyrapi.publication.keytoitemmapcomplementor.*
 import io.github.jokoroukwu.zephyrapi.publication.publicationfinalizer.SerializableTestResult
 import io.github.jokoroukwu.zephyrapi.publication.testcyclecreator.CreateTestCycleRequest
+import io.github.jokoroukwu.zephyrapi.publication.testcyclecreator.CreateTestCycleRequestSender.Companion.DEFAULT_FORMATTER
 import io.github.jokoroukwu.zephyrapi.publication.testcycleupdater.UpdateTestCycleRequest
 import io.github.jokoroukwu.zephyrapi.publication.testresultstatuscomplementor.TestResultStatus
 import io.mockk.unmockkAll
@@ -33,7 +32,9 @@ import org.assertj.core.api.SoftAssertions
 import org.testng.annotations.AfterClass
 import org.testng.annotations.BeforeClass
 import org.testng.annotations.Test
+import java.net.URL
 import java.time.Instant
+import java.time.ZoneOffset
 import java.util.*
 import java.util.stream.Collectors
 
@@ -46,9 +47,15 @@ const val NON_DATA_DRIVEN_TEST_CASE = "non-data-driven-test-case-key"
 class HappyPathTest {
     private val wireMockPort = 2355
     private val wireMockHttpsPort = 2354
-    private val zephyrConfig = ZephyrConfigLoaderImpl.getZephyrConfig()
     private val idOne = 1L
     private val idTwo = 2L
+    private val zephyrConfig: ZephyrConfig = ZephyrConfigImpl(
+        ZoneOffset.UTC,
+        URL("https://localhost:$wireMockHttpsPort"),
+        "PROJ-123",
+        "user",
+        "pass"
+    )
 
     private val wireMock = WireMockServer(WireMockConfiguration().httpsPort(wireMockHttpsPort).port(wireMockPort))
         .also { configureFor("localhost", wireMockPort) }
@@ -117,19 +124,27 @@ class HappyPathTest {
 
     @BeforeClass
     fun setUp() {
+        val zephyrConfig = ZephyrConfigImpl(
+            timeZone = zephyrConfig.timeZone,
+            jiraUrl = URL("https://localhost:$wireMockHttpsPort"),
+            projectKey = zephyrConfig.projectKey,
+            username = zephyrConfig.username,
+            password = zephyrConfig.password
+        )
         with(wireMock) {
             start()
-            stubGetTestCasesRequest(testCaseItems)
-            stubGetTestResultStatusesRequest()
-            createTestCycleStub = stubCreateTestCycleRequest()
-            updateTestCycleStub = stubUpdateTestCycleRequest()
-            getDetailedReportStub = stubGetDetailedReportRequest(TestRunDetailReport(reportTestResults))
-            updateTestResultsStub = stubUpdateTestResultsRequest()
-            updateTestScriptResultsStub = stubUpdateTestScriptResultsRequest()
+            Stubber(zephyrConfig).run {
+                stubGetTestCasesRequest(testCaseItems)
+                stubGetTestResultStatusesRequest()
+                createTestCycleStub = stubCreateTestCycleRequest()
+                updateTestCycleStub = stubUpdateTestCycleRequest()
+                getDetailedReportStub = stubGetDetailedReportRequest(TestRunDetailReport(reportTestResults))
+                updateTestResultsStub = stubUpdateTestResultsRequest()
+                updateTestScriptResultsStub = stubUpdateTestScriptResultsRequest()
+            }
         }
-        ZephyrClient.publishTestResults(listOf(testRun))
+        ZephyrClient.publishTestResults(listOf(testRun), zephyrConfig)
     }
-
 
     @Test
     fun `should submit single valid getTestCases request`() {
@@ -141,7 +156,7 @@ class HappyPathTest {
 
         verify(
             exactly(1), getRequestedFor(urlEqualTo(url))
-                .withBasicAuth(BasicCredentials(zephyrConfig.username(), zephyrConfig.password()))
+                .withBasicAuth(BasicCredentials(zephyrConfig.username, zephyrConfig.password))
         )
     }
 
@@ -150,7 +165,7 @@ class HappyPathTest {
         val url = "$BASE_API_URL/project/$DEFAULT_PROJECT_ID/testresultstatus"
         verify(
             exactly(1), getRequestedFor(urlEqualTo(url))
-                .withBasicAuth(BasicCredentials(zephyrConfig.username(), zephyrConfig.password()))
+                .withBasicAuth(BasicCredentials(zephyrConfig.username, zephyrConfig.password))
         )
     }
 
@@ -166,10 +181,21 @@ class HappyPathTest {
 
 
             val actualCreateTestCycleRequest: CreateTestCycleRequest = Json.decodeFromString(request.bodyAsString);
-            val expectedStartDate = Instant.ofEpochMilli(testRun.startTime).toString()
-            val expectedEndDate = Instant.ofEpochMilli(testRun.endTime).toString()
+            val expectedStartDate = Instant.ofEpochMilli(testRun.startTime)
+            val expectedEndDate = Instant.ofEpochMilli(testRun.endTime)
+            val expectedTestCycleName = String.format(
+                "%s (%s - %s)",
+                testRun.name,
+                expectedStartDate.atZone(zephyrConfig.timeZone).format(DEFAULT_FORMATTER),
+                expectedEndDate.atZone(zephyrConfig.timeZone).format(DEFAULT_FORMATTER)
+            )
             val expectedCreateTestCycleRequest =
-                CreateTestCycleRequest(DEFAULT_PROJECT_ID, testRun.name, expectedStartDate, expectedEndDate)
+                CreateTestCycleRequest(
+                    DEFAULT_PROJECT_ID,
+                    expectedTestCycleName,
+                    expectedStartDate.toString(),
+                    expectedEndDate.toString()
+                )
 
             assertThat(actualCreateTestCycleRequest)
                 .`as`("should have received expected request")
@@ -329,6 +355,6 @@ class HappyPathTest {
     private inline fun <T> softly(assertion: SoftAssertions.() -> T) = assertion(SoftAssertions())
 
 
-    private fun ZephyrConfig.basicAuthBase64() = "Basic ${"${username()}:${password()}".encodeBase64ToString()}"
+    private fun ZephyrConfig.basicAuthBase64() = "Basic ${"${username}:${password}".encodeBase64ToString()}"
 
 }

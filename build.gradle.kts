@@ -1,7 +1,7 @@
 plugins {
     `maven-publish`
     kotlin("jvm") version "1.4.10"
-    kotlin("plugin.serialization")
+    kotlin("plugin.serialization") version "1.4.10"
 }
 
 group = "io.github.jokoroukwu"
@@ -11,9 +11,13 @@ repositories {
     jcenter()
     mavenCentral()
 }
+
 java {
     sourceCompatibility = JavaVersion.VERSION_1_8
     targetCompatibility = JavaVersion.VERSION_1_8
+
+    withSourcesJar()
+    withJavadocJar()
 }
 
 tasks.compileKotlin {
@@ -23,7 +27,7 @@ tasks.compileKotlin {
 }
 
 dependencies {
-    implementation(kotlin("stdlib"))
+    implementation(kotlin("stdlib", "1.4.10"))
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.0.1")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.4.1")
     implementation("org.snakeyaml:snakeyaml-engine:2.3")

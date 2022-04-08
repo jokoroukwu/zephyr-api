@@ -1,6 +1,6 @@
 package io.github.jokoroukwu.zephyrapi.publication.testcyclefilter
 
-import io.github.jokoroukwu.zephyrapi.publication.PublicationData
+import io.github.jokoroukwu.zephyrapi.publication.PublicationContext
 import io.github.jokoroukwu.zephyrapi.publication.PublicationDataProcessor
 import io.github.jokoroukwu.zephyrapi.publication.ZephyrTestCycle
 import io.github.jokoroukwu.zephyrapi.publication.ZephyrTestResult
@@ -15,20 +15,20 @@ class TestCycleFilter(
     private val nextProcessor: PublicationDataProcessor = TestResultStatusComplementor()
 ) : PublicationDataProcessor {
 
-    override fun process(publicationData: PublicationData): Boolean {
-        return publicationData.testCycles.takeUnless(Collection<ZephyrTestCycle>::isEmpty)
+    override fun process(publicationContext: PublicationContext): Boolean {
+        return publicationContext.testCycles.takeUnless(Collection<ZephyrTestCycle>::isEmpty)
             ?.run {
                 ArrayList<ZephyrTestCycle>(size).also {
                     forEach { cycle ->
                         cycle.filterNotEmpty()
-                            ?.filterResults(publicationData.testCaseKeyToItemMap)
+                            ?.filterResults(publicationContext.testCaseKeyToItemMap)
                             ?.filterNotEmpty()
                             ?.let(it::add)
                     }
                 }
             }
             ?.takeUnless(List<ZephyrTestCycle>::isEmpty)
-            ?.let { publicationData.copy(testCycles = it) }
+            ?.let { publicationContext.copy(testCycles = it) }
             ?.let(nextProcessor::process)
             ?: false.also { logger.info { "No test cycles to create" } }
     }

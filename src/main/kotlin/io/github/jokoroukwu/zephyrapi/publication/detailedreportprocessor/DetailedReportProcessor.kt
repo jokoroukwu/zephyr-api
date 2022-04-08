@@ -1,7 +1,6 @@
 package io.github.jokoroukwu.zephyrapi.publication.detailedreportprocessor
 
-import io.github.jokoroukwu.zephyrapi.api.*
-import io.github.jokoroukwu.zephyrapi.publication.PublicationData
+import io.github.jokoroukwu.zephyrapi.publication.PublicationContext
 import io.github.jokoroukwu.zephyrapi.publication.PublicationDataProcessor
 import io.github.jokoroukwu.zephyrapi.publication.ZephyrTestCycle
 import io.github.jokoroukwu.zephyrapi.publication.publicationfinalizer.PublicationDataFinalizer
@@ -15,30 +14,32 @@ class DetailedReportProcessor(
     private val nextProcessor: PublicationDataProcessor = PublicationDataFinalizer()
 ) : PublicationDataProcessor {
 
-    override fun process(publicationData: PublicationData): Boolean {
-        return fetchTestRunReports(publicationData)
+    override fun process(publicationContext: PublicationContext): Boolean {
+        return fetchTestRunReports(publicationContext)
             .takeUnless(List<TestRunDetailReport>::isEmpty)
             ?.let(::groupReportTestResultsByTestCaseId)
-            ?.let { publicationData.copy(testCaseIdToReportTestResultsMap = it) }
+            ?.let { publicationContext.copy(testCaseIdToReportTestResultsMap = it) }
             ?.let(nextProcessor::process)
             ?: false.also { logger.info { "Fetched detailed report was empty" } }
     }
 
 
-    private fun fetchTestRunReports(publicationData: PublicationData): List<TestRunDetailReport> {
+    private fun fetchTestRunReports(publicationContext: PublicationContext): List<TestRunDetailReport> {
         //  initialized lazily
         var testCyclesString = ""
         logger.debug {
-            testCyclesString = publicationData.testCycles.formatToString()
+            testCyclesString = publicationContext.testCycles.formatToString()
             "Fetching detailed report for test cycles: $testCyclesString"
         }
 
-        return getDetailedReportSender
-            .getDetailedReport(publicationData)
-            .testRunsDetailReports
-            .also {
-                logger.debug { "Detailed report successfully fetched for test cycles: $testCyclesString" }
-            }
+        return with(publicationContext) {
+            getDetailedReportSender
+                .getDetailedReport(projectId, testCycles, zephyrConfig)
+                .testRunsDetailReports
+                .also {
+                    logger.debug { "Detailed report successfully fetched for test cycles: $testCyclesString" }
+                }
+        }
     }
 
     private fun groupReportTestResultsByTestCaseId(testRunDetailReports: Collection<TestRunDetailReport>): Map<Long, Queue<ReportTestResult>>? {

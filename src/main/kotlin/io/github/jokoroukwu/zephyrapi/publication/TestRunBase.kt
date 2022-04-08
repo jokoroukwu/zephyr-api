@@ -7,12 +7,12 @@ import kotlinx.serialization.Serializable
 @SerialName("testRun")
 data class TestRunBase(
     override val name: String,
-    override val testResults: List<TestResult>,
+    override val testResults: List<TestResultBase>,
     override val startTime: Long,
     override val endTime: Long,
 ) : TestRun {
 
-    constructor(name: String, testResults: List<TestResult>) : this(
+    constructor(name: String, testResults: List<TestResultBase>) : this(
         name,
         testResults,
         testResults.minOf(TestResult::startTime),

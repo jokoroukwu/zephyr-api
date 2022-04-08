@@ -1,5 +1,6 @@
 package io.github.jokoroukwu.zephyrapi.config
 
+import java.net.URL
 import java.time.ZoneId
 
 interface ZephyrConfig {
@@ -7,25 +8,25 @@ interface ZephyrConfig {
      * The actual timezone used to display Zephyr test result
      * start and end time
      */
-    fun timeZone(): ZoneId
+    val timeZone: ZoneId
 
     /**
-     * JIRA server URL e.g https://my-jira:9091
+     * JIRA server URL e.g https://${your-jira-server-address}
      */
-    fun jiraUrl(): String
+    val jiraUrl: URL
 
     /**
      * JIRA project key
      */
-    fun projectKey(): String
+    val projectKey: String
 
     /**
      * JIRA login
      */
-    fun username(): String
+    val username: String
 
     /**
      * JIRA password
      */
-    fun password(): String
+    val password: String
 }

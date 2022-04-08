@@ -1,7 +1,7 @@
 package io.github.jokoroukwu.zephyrapi.publication.publicationfinalizer
 
 
-import io.github.jokoroukwu.zephyrapi.publication.PublicationData
+import io.github.jokoroukwu.zephyrapi.publication.PublicationContext
 import io.github.jokoroukwu.zephyrapi.publication.PublicationDataProcessor
 import io.github.jokoroukwu.zephyrapi.publication.detailedreportprocessor.TestScriptResult
 import io.github.jokoroukwu.zephyrapi.publication.testresultupdater.TestResultUpdater
@@ -16,15 +16,15 @@ class PublicationDataFinalizer(
     private val testResultFinalizer: TestResultFinalizer = TestResultFinalizerImpl()
 ) : PublicationDataProcessor {
 
-    override fun process(publicationData: PublicationData): Boolean {
-        val testCaseIdToTestResults = publicationData.testCaseIdToReportTestResultsMap
+    override fun process(publicationContext: PublicationContext): Boolean {
+        val testCaseIdToTestResults = publicationContext.testCaseIdToReportTestResultsMap
         val finalizedTestResults = ArrayList<SerializableTestResult>(testCaseIdToTestResults.size)
         val finalizedSteps = LinkedList<TestScriptResult>()
-        for (testCycle in publicationData.testCycles) {
+        for (testCycle in publicationContext.testCycles) {
             for (testResult in testCycle.testResults) {
                 testCaseIdToTestResults[testResult.testCaseId]
                     ?.poll()
-                    ?.let { testResultFinalizer.finalizeTestResult(it, testResult, publicationData.statusMap) }
+                    ?.let { testResultFinalizer.finalizeTestResult(it, testResult, publicationContext.statusMap) }
                     ?.also { finalizedSteps.addAll(it.finalizedSteps) }
                     ?.also { finalizedTestResults.add(it.finalizedResult) }
                     ?: logger.warn {
@@ -36,7 +36,7 @@ class PublicationDataFinalizer(
             }
         }
         return nextProcessor.process(
-            publicationData.copy(finalizedSteps = finalizedSteps, finalizedTestResults = finalizedTestResults)
+            publicationContext.copy(finalizedSteps = finalizedSteps, finalizedTestResults = finalizedTestResults)
         )
     }
 }

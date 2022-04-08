@@ -1,8 +1,7 @@
-## Zephyr-API
-A simple library for publishing test results
-to 'Zephyr for JIRA Server' test management tool.
+# Zephyr-API
+An abstraction over the undocumented API of «Zephyr for JIRA Server» test management tool.
 
-### Main purpose
+## Overview
 Zephyr for JIRA is a great test management tool.<br>
 Unfortunately the official public API does not fully support
 all features commonly used in test automation, such as
@@ -15,9 +14,10 @@ for JIRA API and provides an
 which embodies all the work necessary
 to publish test results to Zephyr.
 
-## Setup
 The library should be fully compatible with Java 8.<br>
-Simply add the dependency.
+
+## Setup
+Simply add the dependency:
 
 Gradle:
 ```Groovy
@@ -33,61 +33,6 @@ Maven:
     <artifactId>zephyr-api</artifactId>
     <version>0.1.1</version>
 </dependency>
-```
-
-
-The library also requires configuration which can be specified
-in ```zephyr-config.yml```.<br>
-The file should have the following format:
-
-```YAML
-# The timezone used to display Zephyr test result start and end time
-time-zone: GMT+3
-
-# Your JIRA server project key
-project-key: PROJKEY
-
-# Your JIRA server URL
-jira-url: https://your-jira-server:8089
-
-# Your JIRA credentials.
-username: ${username:?err}
-password: ${password:?err}
-```
-
-Placeholders like ```${password:?err}``` may be used anywhere in the file.
-They will be substituted with
-either environment variables or system properties with
-the former taking precedence over the latter.<br><br>
-
-The path to ```zephyr-config.yml``` file is resolved as follows (whichever succeeds first):
-
-- If ```ZEPHYR_CONFIG``` environment variable is set, then its value is used as an absolute path.
-- If ```zephyr.config``` system property is set, then its value is used as an absolute path.
-- Finally, classpath resources are scanned for ```zephyr-config.yml``` file.
-
-## Usage
-
-A test method needs to be annotated with ```@TestCaseKey```
-to have its result collected,
-properly mapped to the existing test case
-and published to Zephyr.
-Example:
-```java
-    @TestCaseKey("MYPROJ-123")
-    @Test
-    public void should_test_something(){
-        
-    }
-```
-You may optionally annotate any method with ```@Step```
-to map the method's result to
-the corresponding Zephyr step. Example:
-```Java
-    @Step(0, "create user")
-    public void createUser(User user){
-
-    }
 ```
 
 ## Licence

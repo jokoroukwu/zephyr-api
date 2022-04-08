@@ -1,4 +1,4 @@
-package io.github.jokoroukwu.zephyrapi.api.annotations
+package io.github.jokoroukwu.zephyrapi.annotation
 
 /**
  * Indicates that the method corresponds to a particular

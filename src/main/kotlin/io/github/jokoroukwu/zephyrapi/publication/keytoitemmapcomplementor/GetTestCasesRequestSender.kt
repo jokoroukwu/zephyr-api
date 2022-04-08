@@ -3,6 +3,7 @@ package io.github.jokoroukwu.zephyrapi.publication.keytoitemmapcomplementor
 import com.github.kittinunf.fuel.core.RequestFactory
 import com.github.kittinunf.fuel.core.extensions.authentication
 import com.github.kittinunf.fuel.core.response
+import io.github.jokoroukwu.zephyrapi.config.ZephyrConfig
 import io.github.jokoroukwu.zephyrapi.config.ZephyrConfigImpl
 import io.github.jokoroukwu.zephyrapi.config.ZephyrConfigLoaderImpl
 import io.github.jokoroukwu.zephyrapi.http.AbstractRequestSender
@@ -14,22 +15,22 @@ import kotlinx.serialization.json.Json
 const val MAX_TEST_CASE_COUNT = 99999
 
 class GetTestCasesRequestSender(
-    config: ZephyrConfigImpl = ZephyrConfigLoaderImpl.getZephyrConfig(),
     jsonMapper: Json = JsonMapper.instance,
     requestFactory: RequestFactory.Convenience = defaultRequestFactory
-) : AbstractRequestSender(config, jsonMapper, requestFactory) {
-    private val urlTemplate = "$baseUrl/testcase/search?fields=id,key,projectId,testData(id)," +
+) : AbstractRequestSender(jsonMapper, requestFactory) {
+
+    private val urlTemplate = "/testcase/search?fields=id,key,projectId,testData(id)," +
             "testScript(steps(index))&maxResults=$MAX_TEST_CASE_COUNT&query=testCase.key IN"
-    private val errorMessageTemplate = "Failed to fetch test cases from Zephyr:"
+    private val errorMessageTemplate = "Failed to fetch test cases from Zephyr"
 
     /**
      * Attempts to fetch test cases from Zephyr by provided [testCaseKeys]
      */
-    fun requestTestCases(testCaseKeys: Collection<String>): GetTestCasesResponse {
-        val url = "$urlTemplate${testCaseKeys.joinToString("','", "('", "')")}"
+    fun requestTestCases(testCaseKeys: Collection<String>, zephyrConfig: ZephyrConfig): GetTestCasesResponse {
+        val url = zephyrConfig.jiraUrl.resolveApiUrl(urlTemplate + testCaseKeys.joinToString("','", "('", "')"))
         return zephyrConfig.runCatching {
             requestFactory.get(url)
-                .authentication().basic(username(), password())
+                .authentication().basic(username, password)
                 .treatResponseAsValid()
                 .response(ZephyrResponseDeserializer)
                 .third.get()

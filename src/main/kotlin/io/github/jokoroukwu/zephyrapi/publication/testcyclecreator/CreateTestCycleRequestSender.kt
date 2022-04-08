@@ -4,61 +4,73 @@ import com.github.kittinunf.fuel.core.RequestFactory
 import com.github.kittinunf.fuel.core.await
 import com.github.kittinunf.fuel.core.extensions.authentication
 import com.github.kittinunf.fuel.core.extensions.jsonBody
+import io.github.jokoroukwu.zephyrapi.config.ZephyrConfig
 import io.github.jokoroukwu.zephyrapi.publication.TestRun
-import io.github.jokoroukwu.zephyrapi.config.ZephyrConfigImpl
-import io.github.jokoroukwu.zephyrapi.config.ZephyrConfigLoaderImpl
 import io.github.jokoroukwu.zephyrapi.http.*
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import java.time.Instant
+import java.time.format.DateTimeFormatter
 
 class CreateTestCycleRequestSender(
-    zephyrConfig: ZephyrConfigImpl = ZephyrConfigLoaderImpl.getZephyrConfig(),
     jsonMapper: Json = JsonMapper.instance,
     requestFactory: RequestFactory.Convenience = defaultRequestFactory,
-) : AbstractRequestSender(zephyrConfig, jsonMapper, requestFactory) {
+    private val dateTimeFormatter: DateTimeFormatter = DEFAULT_FORMATTER
+) : AbstractRequestSender(jsonMapper, requestFactory) {
 
-    private val url = "$baseUrl/testrun"
-    private val errorMessageTemplate = "failed to create Zephyr test cycle"
+    companion object {
+        val DEFAULT_FORMATTER: DateTimeFormatter = DateTimeFormatter.ofPattern("yyyy-dd-MM'T'HH:mm:ss.SSS")
+
+    }
+
+    private val errorMessageTemplate = "Failed to create Zephyr test cycle"
 
     /**
      * Performs an HTTP request to create a new Zephyr test cycle.
-     * The provided [testNgZephyrSuite] name will be joined with start and end time properties
-     * and used as test cycle name.
      *
      * @param projectId JIRA project id
-     * @param testNgZephyrSuite suite
+     * @param testRun Test run
      */
     suspend fun createTestCycle(
         projectId: Long,
-        zephyrTestCycle: TestRun,
+        testRun: TestRun,
+        zephyrConfig: ZephyrConfig
     ): CreateTestCycleResponse {
-        val testCycleName = zephyrTestCycle.name
+
         return zephyrConfig.runCatching {
-            requestFactory.post(url)
-                .authentication().basic(username(), password())
-                .jsonBody(
-                    jsonMapper.encodeToString(
-                        CreateTestCycleRequest(
-                            projectId = projectId,
-                            name = testCycleName,
-                            plannedStartDate = zephyrTestCycle.startTime.millisToString(),
-                            plannedEndDate = zephyrTestCycle.endTime.millisToString(),
-                        )
-                    )
-                ).treatResponseAsValid()
+            requestFactory.post(jiraUrl.resolveApiUrl("/testrun"))
+                .authentication().basic(username, password)
+                .jsonBody(jsonMapper.encodeToString(toTestCycleRequest(projectId, testRun, zephyrConfig)))
+                .treatResponseAsValid()
                 .await(ZephyrResponseDeserializer)
-        }.getOrElse { cause -> throw ZephyrException("$errorMessageTemplate $testCycleName", cause) }
-            .validateStatusCode { "$errorMessageTemplate $testCycleName: unsuccessful status code" }
+        }.getOrElse { cause -> throw ZephyrException("$errorMessageTemplate ${testRun.name}", cause) }
+            .validateStatusCode { "$errorMessageTemplate ${testRun.name}: unsuccessful status code" }
             .runCatching { getJsonBody<CreateTestCycleResponse>() }
             .getOrElse { cause ->
-                throw ZephyrException(
-                    errorMessageTemplate.format(testCycleName, "body deserialization error"), cause
-                )
+                throw ZephyrException("$errorMessageTemplate '${testRun.name}': body deserialization error", cause)
             }
     }
 
-    private fun Long?.millisToString() = this
-        ?.let(Instant::ofEpochMilli)
-        ?.toString()
+    private fun toTestCycleRequest(
+        projectId: Long,
+        testRun: TestRun,
+        zephyrConfig: ZephyrConfig
+    ): CreateTestCycleRequest {
+        val startTimeInstant = Instant.ofEpochMilli(testRun.startTime)
+        val endTimeInstant = Instant.ofEpochMilli(testRun.endTime)
+        val name = String.format(
+            "%s (%s - %s)",
+            testRun.name,
+            startTimeInstant.atZone(zephyrConfig.timeZone).format(dateTimeFormatter),
+            endTimeInstant.atZone(zephyrConfig.timeZone).format(dateTimeFormatter)
+        )
+
+        return CreateTestCycleRequest(
+            projectId = projectId,
+            name = name,
+            plannedStartDate = startTimeInstant.toString(),
+            plannedEndDate = endTimeInstant.toString(),
+        )
+    }
+
 }

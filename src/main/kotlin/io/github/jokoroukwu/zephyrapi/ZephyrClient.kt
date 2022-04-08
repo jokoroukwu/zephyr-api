@@ -1,5 +1,6 @@
-package io.github.jokoroukwu.zephyrapi.api
+package io.github.jokoroukwu.zephyrapi
 
+import io.github.jokoroukwu.zephyrapi.config.ZephyrConfig
 import io.github.jokoroukwu.zephyrapi.publication.*
 import io.github.jokoroukwu.zephyrapi.publication.keytoitemmapcomplementor.TestCaseItemComplementor
 import mu.KotlinLogging
@@ -12,10 +13,12 @@ private val logger = KotlinLogging.logger { }
  */
 open class ZephyrClient(private val publicationDataProcessor: PublicationDataProcessor = TestCaseItemComplementor()) {
 
-    fun publishTestResults(testRuns: Collection<TestRun>) {
+    companion object Default : ZephyrClient()
+
+    fun publishTestResults(testRuns: Collection<TestRun>, zephyrConfig: ZephyrConfig) {
         val publishedSuccessfully: Boolean
         val time = measureTimeMillis {
-            val publication = PublicationData(testCycles = testRuns.toZephyrTestCycles())
+            val publication = PublicationContext(zephyrConfig = zephyrConfig, testCycles = testRuns.toZephyrTestCycles())
             publishedSuccessfully = publicationDataProcessor.process(publication)
         }
         if (publishedSuccessfully) {
@@ -45,6 +48,4 @@ open class ZephyrClient(private val publicationDataProcessor: PublicationDataPro
                 testDataResults = it.testDataResults,
             )
         }
-
-    companion object Default : ZephyrClient()
 }
